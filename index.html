@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌾 Ristoranti Celiaci Vicino a Me</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #2d2d2d; }
+  header { background: #2d6a2d; color: #fff; padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .subtitle { font-size: 12px; color: #a8d5a8; margin-top: 2px; }
+  #btn-cerca { margin: 20px auto; display: block; background: #2d6a2d; color: white; border: none; padding: 14px 32px; border-radius: 30px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 12px rgba(45,106,45,0.3); }
+  #btn-cerca:active { transform: scale(0.97); }
+  #status { text-align: center; font-size: 14px; color: #666; padding: 10px 20px; min-height: 24px; }
+  #map { width: 100%; height: 280px; display: none; }
+  #lista { padding: 12px; display: none; }
+  .card { background: white; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); cursor: pointer; border-left: 4px solid #2d6a2d; }
+  .card-header { display: flex; align-items: flex-start; gap: 10px; }
+  .rank { background: #2d6a2d; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+  .nome { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+  .stars { color: #f5a623; font-size: 13px; margin-top: 2px; }
+  .stars .nrec { color: #999; font-size: 11px; }
+  .indirizzo { font-size: 12px; color: #888; margin-top: 6px; margin-left: 38px; }
+  .distanza { font-size: 12px; color: #2d6a2d; font-weight: 600; margin-left: 38px; margin-top: 2px; }
+  .badge-celiaco { display: inline-block; background: #e8f5e8; color: #2d6a2d; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; margin-top: 8px; margin-left: 38px; border: 1px solid #a8d5a8; }
+  .recensione { background: #f9f9f6; border-radius: 8px; padding: 8px 10px; margin-top: 8px; margin-left: 38px; font-size: 12px; color: #555; font-style: italic; border-left: 2px solid #2d6a2d; }
+  .rec-autore { font-style: normal; font-weight: 600; color: #1a1a1a; font-size: 11px; margin-bottom: 2px; }
+  .azioni { display: flex; gap: 8px; margin-top: 10px; margin-left: 38px; flex-wrap: wrap; }
+  .btn { font-size: 12px; padding: 6px 14px; border-radius: 20px; border: none; cursor: pointer; text-decoration: none; font-weight: 500; display: inline-block; }
+  .btn-maps { background: #1a1208; color: #f5c842; }
+  .btn-tel { background: #e8f5e8; color: #2d6a2d; }
+  #nessun-risultato { text-align: center; padding: 40px 20px; color: #888; display: none; }
+  #nessun-risultato .emoji { font-size: 40px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:24px">🌾</span>
+  <div>
+    <h1>Ristoranti Celiaci</h1>
+    <div class="subtitle">Aperti ora · Vicino a te · Rating ≥ 4.0</div>
+  </div>
+</header>
+
+<button id="btn-cerca" onclick="avvia()">📍 Trova ristoranti vicino a me</button>
+<div id="status"></div>
+<div id="map"></div>
+<div id="lista"></div>
+<div id="nessun-risultato">
+  <div class="emoji">😔</div>
+  <p>Nessun ristorante trovato con opzioni celiaci aperto in questo momento nei dintorni.</p>
+  <p style="margin-top:8px;font-size:12px">Prova ad allargare la ricerca o riprova più tardi.</p>
+</div>
+
+<script>
+var API_KEY = "AIzaSyA3zzVQ6VqbIY7jsxDeKd_teVHkrzY0tSY";
+var map, markers = [], infoWindow;
+
+var PAROLE_CELIACI = [
+  "celiaco", "celiaci", "celiachia", "gluten free", "gluten-free",
+  "senza glutine", "glutine", "gf", "intolleranza al glutine"
+];
+
+function stelle(v) {
+  var s = '';
+  var piene = Math.round(v);
+  for (var i = 0; i < piene; i++) s += '★';
+  for (var i = piene; i < 5; i++) s += '☆';
+  return s;
+}
+
+function distanzaKm(lat1, lng1, lat2, lng2) {
+  var R = 6371;
+  var dLat = (lat2 - lat1) * Math.PI / 180;
+  var dLng = (lng2 - lng1) * Math.PI / 180;
+  var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLng/2) * Math.sin(dLng/2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return (R * c).toFixed(1);
+}
+
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+function avvia() {
+  document.getElementById('btn-cerca').disabled = true;
+  document.getElementById('lista').style.display = 'none';
+  document.getElementById('nessun-risultato').style.display = 'none';
+  document.getElementById('lista').innerHTML = '';
+  setStatus('📍 Rilevo la tua posizione...');
+
+  if (!navigator.geolocation) {
+    setStatus('❌ Il tuo browser non supporta la geolocalizzazione.');
+    document.getElementById('btn-cerca').disabled = false;
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var lat = pos.coords.latitude;
+      var lng = pos.coords.longitude;
+      setStatus('🔍 Posizione trovata! Cerco ristoranti...');
+      cercaRistoranti(lat, lng);
+    },
+    function(err) {
+      setStatus('❌ Impossibile rilevare la posizione. Controlla i permessi del browser.');
+      document.getElementById('btn-cerca').disabled = false;
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function cercaRistoranti(userLat, userLng) {
+  var url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json' +
+    '?location=' + userLat + ',' + userLng +
+    '&radius=1500' +
+    '&type=restaurant' +
+    '&opennow=true' +
+    '&language=it' +
+    '&key=' + API_KEY;
+
+  fetch('https://cors-anywhere.herokuapp.com/' + url)
+    .then(function(r) { return r.json(); })
+    .then(function(dati) {
+      if (dati.status !== 'OK' && dati.status !== 'ZERO_RESULTS') {
+        setStatus('❌ Errore API: ' + dati.status);
+        document.getElementById('btn-cerca').disabled = false;
+        return;
+      }
+      var risultati = (dati.results || []).filter(function(r) {
+        return (r.rating || 0) >= 4.0;
+      });
+      setStatus('Trovati ' + risultati.length + ' ristoranti aperti. Analizzo le recensioni...');
+      analizzaRisultati(risultati, userLat, userLng);
+    })
+    .catch(function() {
+      // Fallback: usa il proxy di Google direttamente tramite script tag
+      cercaConJsonp(userLat, userLng);
+    });
+}
+
+function cercaConJsonp(userLat, userLng) {
+  window._placesCallback = function(dati) {
+    if (dati.status !== 'OK' && dati.status !== 'ZERO_RESULTS') {
+      setStatus('❌ Errore: ' + dati.status);
+      document.getElementById('btn-cerca').disabled = false;
+      return;
+    }
+    var risultati = (dati.results || []).filter(function(r) {
+      return (r.rating || 0) >= 4.0;
+    });
+    setStatus('Trovati ' + risultati.length + ' ristoranti aperti. Analizzo le recensioni...');
+    analizzaRisultati(risultati, userLat, userLng);
+  };
+
+  var script = document.createElement('script');
+  script.src = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json' +
+    '?location=' + userLat + ',' + userLng +
+    '&radius=1500&type=restaurant&opennow=true&language=it' +
+    '&key=' + API_KEY + '&callback=_placesCallback';
+  document.head.appendChild(script);
+}
+
+function analizzaRisultati(risultati, userLat, userLng) {
+  var barValidi = [];
+  var count = 0;
+
+  if (risultati.length === 0) {
+    mostraRisultati([], userLat, userLng);
+    return;
+  }
+
+  risultati.forEach(function(r) {
+    var placeId = r.place_id;
+    var service = new google.maps.places.PlacesService(document.createElement('div'));
+    service.getDetails({
+      placeId: placeId,
+      fields: ['name', 'rating', 'user_ratings_total', 'formatted_address',
+               'geometry', 'reviews', 'url', 'formatted_phone_number',
+               'opening_hours', 'website'],
+      language: 'it'
+    }, function(dettagli, stato) {
+      count++;
+      if (stato === google.maps.places.PlacesServiceStatus.OK && dettagli) {
+        var recensioni = dettagli.reviews || [];
+        var testi = recensioni.map(function(rv) {
+          return (rv.text || '').toLowerCase();
+        }).join(' ');
+
+        var menzioneCeliaci = PAROLE_CELIACI.some(function(p) {
+          return testi.indexOf(p) !== -1;
+        });
+
+        if (menzioneCeliaci) {
+          var lat = dettagli.geometry.location.lat();
+          var lng = dettagli.geometry.location.lng();
+          var dist = distanzaKm(userLat, userLng, lat, lng);
+
+          var recCeliaco = null;
+          for (var i = 0; i < recensioni.length; i++) {
+            var t = (recensioni[i].text || '').toLowerCase();
+            var trovato = PAROLE_CELIACI.some(function(p) { return t.indexOf(p) !== -1; });
+            if (trovato) {
+              recCeliaco = recensioni[i];
+              break;
+            }
+          }
+
+          barValidi.push({
+            nome: dettagli.name,
+            valutazione: dettagli.rating || 0,
+            n_recensioni: dettagli.user_ratings_total || 0,
+            indirizzo: dettagli.formatted_address || '',
+            telefono: dettagli.formatted_phone_number || '',
+            sito: dettagli.website || '',
+            link: dettagli.url || '',
+            lat: lat,
+            lng: lng,
+            dist: parseFloat(dist),
+            recCeliaco: recCeliaco
+          });
+        }
+      }
+
+      if (count === risultati.length) {
+        barValidi.sort(function(a, b) {
+          return b.valutazione - a.valutazione || a.dist - b.dist;
+        });
+        mostraRisultati(barValidi.slice(0, 10), userLat, userLng);
+      }
+    });
+  });
+}
+
+function mostraRisultati(lista, userLat, userLng) {
+  setStatus('');
+  document.getElementById('btn-cerca').textContent = '🔄 Aggiorna';
+  document.getElementById('btn-cerca').disabled = false;
+
+  if (lista.length === 0) {
+    document.getElementById('nessun-risultato').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('map').style.display = 'block';
+  document.getElementById('lista').style.display = 'block';
+
+  // Inizializza mappa
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: { lat: userLat, lng: userLng },
+    zoom: 14
+  });
+
+  // Marker posizione utente
+  new google.maps.Marker({
+    position: { lat: userLat, lng: userLng },
+    map: map,
+    title: 'Sei qui',
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      fillColor: '#4285F4',
+      fillOpacity: 1,
+      strokeColor: '#fff',
+      strokeWeight: 3,
+      scale: 10
+    }
+  });
+
+  infoWindow = new google.maps.InfoWindow();
+  markers = [];
+
+  lista.forEach(function(r, i) {
+    var marker = new google.maps.Marker({
+      position: { lat: r.lat, lng: r.lng },
+      map: map,
+      title: r.nome,
+      label: { text: String(i+1), color: '#fff', fontWeight: 'bold', fontSize: '12px' },
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: '#2d6a2d',
+        fillOpacity: 1,
+        strokeColor: '#fff',
+        strokeWeight: 2,
+        scale: 18
+      }
+    });
+    marker.addListener('click', function(idx) {
+      return function() { seleziona(idx); };
+    }(i));
+    markers.push(marker);
+  });
+
+  // Costruisci lista
+  var listaEl = document.getElementById('lista');
+  lista.forEach(function(r, i) {
+    var div = document.createElement('div');
+    div.className = 'card';
+    div.id = 'card-' + i;
+
+    var recHtml = '';
+    if (r.recCeliaco) {
+      var testo = r.recCeliaco.text || '';
+      if (testo.length > 150) testo = testo.substring(0, 150) + '...';
+      recHtml = '<div class="recensione"><div class="rec-autore">' +
+        r.recCeliaco.author_name + ' · ' + stelle(r.recCeliaco.rating) +
+        '</div>' + testo + '</div>';
+    }
+
+    var azioniHtml = '<div class="azioni">' +
+      '<a class="btn btn-maps" href="' + r.link + '" target="_blank">📍 Maps</a>' +
+      (r.telefono ? '<a class="btn btn-tel" href="tel:' + r.telefono + '">📞 ' + r.telefono + '</a>' : '') +
+      (r.sito ? '<a class="btn btn-tel" href="' + r.sito + '" target="_blank">🌐 Sito</a>' : '') +
+      '</div>';
+
+    div.innerHTML =
+      '<div class="card-header">' +
+        '<div class="rank">' + (i+1) + '</div>' +
+        '<div>' +
+          '<div class="nome">' + r.nome + '</div>' +
+          '<div class="stars">' + stelle(r.valutazione) +
+            ' <span class="nrec">' + r.valutazione + ' (' + r.n_recensioni + ' recensioni)</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="indirizzo">📍 ' + r.indirizzo + '</div>' +
+      '<div class="distanza">📏 ' + r.dist + ' km da te</div>' +
+      '<div class="badge-celiaco">🌾 Opzioni senza glutine menzionate</div>' +
+      recHtml +
+      azioniHtml;
+
+    div.onclick = function(idx) { return function() { seleziona(idx); }; }(i);
+    listaEl.appendChild(div);
+  });
+}
+
+function seleziona(i) {
+  document.querySelectorAll('.card').forEach(function(c) { c.classList.remove('active'); });
+  var card = document.getElementById('card-' + i);
+  if (card) {
+    card.classList.add('active');
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  if (infoWindow) infoWindow.close();
+  if (map && markers[i]) {
+    map.panTo(markers[i].getPosition());
+    map.setZoom(16);
+  }
+}
+
+function initMap() { /* inizializzata al click */ }
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA3zzVQ6VqbIY7jsxDeKd_teVHkrzY0tSY&libraries=places&callback=initMap" async defer></script>
+</body>
+</html>
