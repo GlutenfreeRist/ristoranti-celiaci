@@ -7,13 +7,34 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #2d2d2d; }
-  header { background: #2d6a2d; color: #fff; padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+  header { background: #2d6a2d; color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  #header-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  #btn-cerca { background: rgba(255,255,255,0.2); color: white; border: 2px solid rgba(255,255,255,0.5); padding: 8px 16px; border-radius: 25px; font-size: 13px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+  #btn-cerca:hover { background: rgba(255,255,255,0.3); }
+  #tripadvisor-link { display: none; }
+  /* On mobile: button and links go below header */
+  @media (max-width: 768px) {
+    #header-controls { display: none; }
+    #mobile-controls { display: block; }
+  }
+  @media (min-width: 769px) {
+    #mobile-controls { display: none; }
+  }
   header h1 { font-size: 18px; font-weight: 600; }
   header .subtitle { font-size: 12px; color: #a8d5a8; margin-top: 2px; }
   #btn-cerca { margin: 20px auto; display: block; background: #2d6a2d; color: white; border: none; padding: 14px 32px; border-radius: 30px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 12px rgba(45,106,45,0.3); }
   #status { text-align: center; font-size: 14px; color: #666; padding: 10px 20px; min-height: 24px; }
-  #map { width: 100%; height: 280px; display: none; }
+  /* Layout desktop: lista sinistra, mappa destra */
+  #main-layout { display: flex; height: calc(100vh - 130px); }
+  #map { flex: 1; height: 100%; display: none; }
+  #lista-wrapper { width: 420px; overflow-y: auto; flex-shrink: 0; background: #f5f5f0; }
   #lista { padding: 12px; display: none; }
+  /* Mobile: tutto in colonna */
+  @media (max-width: 768px) {
+    #main-layout { flex-direction: column; height: auto; }
+    #lista-wrapper { width: 100%; }
+    #map { height: 280px; flex: none; }
+  }
   .card { background: white; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); cursor: pointer; border-left: 4px solid #2d6a2d; }
   .card.active { background: #f0faf0; }
   .card-header { display: flex; align-items: flex-start; gap: 10px; }
@@ -32,6 +53,15 @@
   .btn-tel { background: #e8f5e8; color: #2d6a2d; }
   #nessun-risultato { text-align: center; padding: 40px 20px; color: #888; display: none; }
   #nessun-risultato .emoji { font-size: 40px; margin-bottom: 12px; }
+  #legenda { display:none; padding: 10px 12px; background: white; margin: 0 12px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); font-size: 12px; }
+  #legenda .riga { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+  #legenda .dot { width:14px; height:14px; border-radius:50%; flex-shrink:0; }
+  .dot-google { background:#2d6a2d; border: 2px solid white; box-shadow:0 0 0 1px #2d6a2d; }
+  .dot-osm { background:#e07b00; border: 2px solid white; box-shadow:0 0 0 1px #e07b00; }
+  .dot-user { background:#4285F4; border: 2px solid white; box-shadow:0 0 0 1px #4285F4; }
+  .card-osm { border-left-color: #e07b00; }
+  .rank-osm { background: #e07b00; }
+  .badge-osm { background: #fff3e0; color: #e07b00; border-color: #ffcc80; }
 </style>
 </head>
 <body>
@@ -42,12 +72,28 @@
     <h1>Ristoranti Celiaci</h1>
     <div class="subtitle">Aperti ora · Vicino a te · Rating ≥ 4.0</div>
   </div>
+  <div id="header-controls">
+    <div id="status" style="font-size:12px;color:rgba(255,255,255,0.8);"></div>
+    <div id="tripadvisor-link"></div>
+    <button id="btn-cerca" onclick="avvia()">📍 Trova ristoranti vicino a me</button>
+  </div>
 </header>
  
-<button id="btn-cerca" onclick="avvia()">📍 Trova ristoranti vicino a me</button>
-<div id="status"></div>
-<div id="map"></div>
-<div id="lista"></div>
+<div id="mobile-controls">
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:16px 20px 4px;">
+    <label for="raggio-mobile" style="font-size:14px;color:#444;">📏 Raggio di ricerca:</label>
+    <input type="number" id="raggio-mobile" min="0.5" max="20" step="0.5" value="4" style="width:60px;padding:6px 8px;border:2px solid #2d6a2d;border-radius:12px;font-size:15px;font-weight:700;text-align:center;color:#2d6a2d;outline:none;" />
+    <span style="font-size:14px;color:#444;">km</span>
+  </div>
+  <button id="btn-cerca-mobile" onclick="avvia()"  style="margin:16px auto;display:block;background:#2d6a2d;color:white;border:none;padding:14px 32px;border-radius:30px;font-size:16px;cursor:pointer;box-shadow:0 4px 12px rgba(45,106,45,0.3);">📍 Trova ristoranti vicino a me</button>
+  <div id="status-mobile" style="text-align:center;font-size:14px;color:#666;padding:6px 20px;min-height:20px;"></div>
+  <div id="tripadvisor-link-mobile" style="display:none;text-align:center;padding:6px 12px;"></div>
+</div>
+<div id="legenda"></div>
+<div id="main-layout" style="display:none">
+  <div id="lista-wrapper"><div id="lista"></div></div>
+  <div id="map"></div>
+</div>
 <div id="nessun-risultato">
   <div class="emoji">😔</div>
   <p>Nessun ristorante trovato con opzioni celiaci aperto in questo momento nei dintorni.</p>
@@ -81,10 +127,27 @@ function distanzaKm(lat1, lng1, lat2, lng2) {
   return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(1);
 }
  
-function setStatus(msg) { document.getElementById('status').textContent = msg; }
+function getRaggio() {
+  // Prende il valore dal campo visibile (desktop o mobile)
+  var d = document.getElementById('raggio-desktop');
+  var m = document.getElementById('raggio-mobile');
+  var val = (d && d.offsetParent !== null) ? d.value : (m ? m.value : 2);
+  var km = parseFloat(val) || 4;
+  // Limita tra 0.5 e 20 km
+  return Math.min(20, Math.max(0.5, km)) * 1000; // restituisce metri
+}
+ 
+function setStatus(msg) {
+  var s = document.getElementById('status');
+  var sm = document.getElementById('status-mobile');
+  if (s) s.textContent = msg;
+  if (sm) sm.textContent = msg;
+}
  
 function avvia() {
-  document.getElementById('btn-cerca').disabled = true;
+  ['btn-cerca','btn-cerca-mobile'].forEach(function(id) {
+    var btn = document.getElementById(id); if (btn) btn.disabled = true;
+  });
   document.getElementById('lista').style.display = 'none';
   document.getElementById('lista').innerHTML = '';
   document.getElementById('nessun-risultato').style.display = 'none';
@@ -103,7 +166,9 @@ function avvia() {
       userLat = pos.coords.latitude;
       userLng = pos.coords.longitude;
       setStatus('🔍 Posizione trovata! Cerco ristoranti...');
+      generaLinkTripAdvisor(userLat, userLng);
       inizializzaMappa();
+      cercaOSM(userLat, userLng);
     },
     function() {
       setStatus('❌ Impossibile rilevare la posizione. Controlla i permessi GPS.');
@@ -118,34 +183,85 @@ function inizializzaMappa() {
   var mapDiv = document.getElementById('map');
   map = new google.maps.Map(mapDiv, {
     center: { lat: userLat, lng: userLng },
-    zoom: 14
+    zoom: 14,
+    zoomControl: true,
+    zoomControlOptions: {
+      position: google.maps.ControlPosition.RIGHT_BOTTOM
+    },
+    scrollwheel: true,
+    gestureHandling: 'greedy'
   });
   infoWindow = new google.maps.InfoWindow();
   service = new google.maps.places.PlacesService(map);
  
-  var request = {
+  // Prima ricerca: ristoranti con keyword celiaco/gluten free
+  var raggio = getRaggio();
+ 
+  // Ricerca 1: ristoranti con keyword celiaco/gluten free
+  var req1 = {
     location: new google.maps.LatLng(userLat, userLng),
-    radius: 1500,
-    type: 'restaurant',
+    radius: raggio,
+    keyword: 'gluten free celiaco senza glutine',
     openNow: true,
+    type: 'restaurant',
     language: 'it'
   };
  
-  service.nearbySearch(request, function(risultati, stato) {
-    if (stato !== google.maps.places.PlacesServiceStatus.OK || !risultati) {
-      setStatus('❌ Nessun ristorante trovato nelle vicinanze.');
-      document.getElementById('btn-cerca').disabled = false;
-      return;
+  // Ricerca 2: tutti i ristoranti aperti
+  var req2 = {
+    location: new google.maps.LatLng(userLat, userLng),
+    radius: raggio,
+    openNow: true,
+    type: 'restaurant',
+    language: 'it'
+  };
+ 
+  // Ricerca 3: bar e cafe con keyword celiaco/gluten free
+  var req3 = {
+    location: new google.maps.LatLng(userLat, userLng),
+    radius: raggio,
+    keyword: 'gluten free celiaco senza glutine',
+    openNow: true,
+    type: 'bar',
+    language: 'it'
+  };
+ 
+  // Ricerca 4: tutti i bar e cafe aperti
+  var req4 = {
+    location: new google.maps.LatLng(userLat, userLng),
+    radius: raggio,
+    openNow: true,
+    type: 'cafe',
+    language: 'it'
+  };
+ 
+  var tuttiRisultati = [];
+  var ricercheCompletate = 0;
+  var TOTALE_RICERCHE = 4;
+ 
+  function elaboraRisultati(risultati, stato) {
+    ricercheCompletate++;
+    if (stato === google.maps.places.PlacesServiceStatus.OK && risultati) {
+      risultati.forEach(function(r) {
+        // Evita duplicati
+        var esiste = tuttiRisultati.some(function(x) { return x.place_id === r.place_id; });
+        if (!esiste) tuttiRisultati.push(r);
+      });
     }
+    if (ricercheCompletate === TOTALE_RICERCHE) {
+      // Filtra per rating >= 4.0
+      var filtrati = tuttiRisultati.filter(function(r) {
+        return (r.rating || 0) >= 4.0;
+      });
+      setStatus('Trovati ' + filtrati.length + ' ristoranti aperti. Analizzo le recensioni...');
+      analizzaDettagli(filtrati);
+    }
+  }
  
-    // Filtra per rating >= 4.0
-    var filtrati = risultati.filter(function(r) {
-      return (r.rating || 0) >= 4.0;
-    });
- 
-    setStatus('Trovati ' + filtrati.length + ' ristoranti. Analizzo le recensioni...');
-    analizzaDettagli(filtrati);
-  });
+  service.nearbySearch(req1, elaboraRisultati);
+  service.nearbySearch(req2, elaboraRisultati);
+  service.nearbySearch(req3, elaboraRisultati);
+  service.nearbySearch(req4, elaboraRisultati);
 }
  
 function analizzaDettagli(lista) {
@@ -216,9 +332,12 @@ function analizzaDettagli(lista) {
 }
  
 function mostraRisultati(lista) {
+  googleRisultati = lista;
   setStatus('');
-  document.getElementById('btn-cerca').textContent = '🔄 Aggiorna';
-  document.getElementById('btn-cerca').disabled = false;
+  ['btn-cerca','btn-cerca-mobile'].forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (btn) { btn.textContent = '🔄 Aggiorna'; btn.disabled = false; }
+  });
  
   if (lista.length === 0) {
     document.getElementById('nessun-risultato').style.display = 'block';
@@ -227,6 +346,7 @@ function mostraRisultati(lista) {
  
   document.getElementById('map').style.display = 'block';
   document.getElementById('lista').style.display = 'block';
+  document.getElementById('main-layout').style.display = 'flex';
  
   // Marker posizione utente
   new google.maps.Marker({
@@ -297,6 +417,11 @@ function mostraRisultati(lista) {
     div.onclick = function(idx) { return function() { seleziona(idx); }; }(i);
     listaEl.appendChild(div);
   });
+ 
+  // Se OSM aveva già risposto prima che Google finisse, aggiunge i marker ora
+  if (osmRisultati.length > 0) {
+    aggiungiMarkerOSM();
+  }
 }
  
 function seleziona(i) {
@@ -305,6 +430,194 @@ function seleziona(i) {
   if (card) { card.classList.add('active'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
   if (infoWindow) infoWindow.close();
   if (map && markers[i]) { map.panTo(markers[i].getPosition()); map.setZoom(16); }
+}
+ 
+var osmRisultati = [];
+var googleRisultati = [];
+ 
+function cercaOSM(lat, lng) {
+  // Overpass API: cerca ristoranti con diet:gluten_free=yes nel raggio di 2km
+  var r = getRaggio(); // raggio da input utente
+  var query = '[out:json][timeout:30];(' +
+    // Ristoranti con gluten_free=yes o only
+    'node["amenity"="restaurant"]["diet:gluten_free"="yes"](around:' + r + ',' + lat + ',' + lng + ');' +
+    'way["amenity"="restaurant"]["diet:gluten_free"="yes"](around:' + r + ',' + lat + ',' + lng + ');' +
+    'node["amenity"="restaurant"]["diet:gluten_free"="only"](around:' + r + ',' + lat + ',' + lng + ');' +
+    'way["amenity"="restaurant"]["diet:gluten_free"="only"](around:' + r + ',' + lat + ',' + lng + ');' +
+    // Bar e cafe con gluten_free
+    'node["amenity"="cafe"]["diet:gluten_free"="yes"](around:' + r + ',' + lat + ',' + lng + ');' +
+    'way["amenity"="cafe"]["diet:gluten_free"="yes"](around:' + r + ',' + lat + ',' + lng + ');' +
+    // Fast food con gluten_free
+    'node["amenity"="fast_food"]["diet:gluten_free"="yes"](around:' + r + ',' + lat + ',' + lng + ');' +
+    // Locali con "gluten" nel nome
+    'node["amenity"="restaurant"]["name"~"gluten",i](around:' + r + ',' + lat + ',' + lng + ');' +
+    'node["amenity"="restaurant"]["name"~"celiaco",i](around:' + r + ',' + lat + ',' + lng + ');' +
+    'node["amenity"="cafe"]["name"~"gluten",i](around:' + r + ',' + lat + ',' + lng + ');' +
+    ');out center;';
+ 
+  fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    body: query
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(dati) {
+    var elementi = dati.elements || [];
+    console.log('OSM risposta:', dati.elements ? dati.elements.length : 0, 'elementi');
+    osmRisultati = [];
+    elementi.forEach(function(el) {
+      var elLat = el.lat || (el.center && el.center.lat);
+      var elLng = el.lon || (el.center && el.center.lon);
+      if (!elLat || !elLng) return;
+      var tags = el.tags || {};
+      var nome = tags.name || 'Ristorante senza nome';
+      var dist = parseFloat(distanzaKm(userLat, userLng, elLat, elLng));
+      osmRisultati.push({
+        nome: nome,
+        indirizzo: [tags['addr:street'], tags['addr:housenumber'], tags['addr:city']].filter(Boolean).join(' '),
+        telefono: tags.phone || tags['contact:phone'] || '',
+        sito: tags.website || tags['contact:website'] || '',
+        lat: elLat,
+        lng: elLng,
+        dist: dist,
+        cucina: tags.cuisine || '',
+        source: 'osm'
+      });
+    });
+    osmRisultati.sort(function(a,b) { return a.dist - b.dist; });
+    aggiungiMarkerOSM();
+  })
+  .catch(function(err) {
+    console.log('OSM errore:', err);
+    setStatus('⚠️ OpenStreetMap non raggiungibile — mostro solo risultati Google');
+  });
+}
+ 
+function aggiungiMarkerOSM() {
+  if (!map) return;
+ 
+  osmRisultati.forEach(function(r, i) {
+    var marker = new google.maps.Marker({
+      position: { lat: r.lat, lng: r.lng },
+      map: map,
+      title: r.nome,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: '#e07b00',
+        fillOpacity: 1,
+        strokeColor: '#fff',
+        strokeWeight: 2,
+        scale: 14
+      }
+    });
+    marker.addListener('click', function() {
+      if (infoWindow) infoWindow.close();
+      infoWindow = new google.maps.InfoWindow({
+        content: '<div style="font-family:sans-serif;max-width:220px">' +
+          '<b>' + r.nome + '</b><br>' +
+          '<span style="color:#e07b00;font-size:12px">🟠 OpenStreetMap · Gluten Free certificato</span><br>' +
+          (r.indirizzo ? '<span style="font-size:12px;color:#666">📍 ' + r.indirizzo + '</span><br>' : '') +
+          (r.dist ? '<span style="font-size:12px;color:#e07b00">📏 ' + r.dist + ' km da te</span><br>' : '') +
+          (r.sito ? '<br><a href="' + r.sito + '" target="_blank" style="color:#e07b00;font-weight:bold;font-size:12px">🌐 Sito web →</a>' : '') +
+          '</div>'
+      });
+      infoWindow.open(map, marker);
+    });
+  });
+ 
+  // Aggiorna legenda
+  var legenda = document.getElementById('legenda');
+  legenda.style.display = 'block';
+  legenda.innerHTML =
+    '<div class="riga"><div class="dot dot-user"></div> La tua posizione</div>' +
+    '<div class="riga"><div class="dot dot-google"></div> Google Maps — aperti ora, recensioni celiaci (' + googleRisultati.length + ' trovati)</div>' +
+    '<div class="riga"><div class="dot dot-osm"></div> OpenStreetMap — certificati gluten free (' + osmRisultati.length + ' trovati)</div>';
+ 
+  // Aggiungi schede OSM in fondo alla lista
+  var listaEl = document.getElementById('lista');
+  if (listaEl.style.display === 'none' || osmRisultati.length === 0) return;
+ 
+  var sep = document.createElement('div');
+  sep.style.cssText = 'padding:10px 14px;font-size:13px;font-weight:600;color:#e07b00;border-top:2px solid #ffe0b2;margin-top:4px;';
+  sep.textContent = '🟠 Trovati anche su OpenStreetMap (' + osmRisultati.length + ')';
+  listaEl.appendChild(sep);
+ 
+  osmRisultati.forEach(function(r) {
+    var div = document.createElement('div');
+    div.className = 'card card-osm';
+    var azioniHtml = '<div class="azioni">' +
+      '<a class="btn btn-maps" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(r.nome + ' ' + r.indirizzo) + '" target="_blank">📍 Maps</a>' +
+      (r.telefono ? '<a class="btn btn-tel" href="tel:' + r.telefono + '">📞 ' + r.telefono + '</a>' : '') +
+      (r.sito ? '<a class="btn btn-tel" href="' + r.sito + '" target="_blank">🌐 Sito</a>' : '') +
+      '</div>';
+    div.innerHTML =
+      '<div class="card-header">' +
+        '<div class="rank rank-osm">🌾</div>' +
+        '<div>' +
+          '<div class="nome">' + r.nome + '</div>' +
+          (r.cucina ? '<div style="font-size:11px;color:#999;margin-top:2px">' + r.cucina + '</div>' : '') +
+        '</div>' +
+      '</div>' +
+      (r.indirizzo ? '<div class="indirizzo">📍 ' + r.indirizzo + '</div>' : '') +
+      '<div class="distanza">📏 ' + r.dist + ' km da te</div>' +
+      '<div class="badge badge-osm">🌾 Gluten free certificato su OpenStreetMap</div>' +
+      azioniHtml;
+    listaEl.appendChild(div);
+  });
+}
+ 
+function generaLinkTripAdvisor(lat, lng) {
+  // Usa il Geocoding di Google per trovare la città attuale
+  var geocoder = new google.maps.Geocoder();
+  geocoder.geocode({ location: { lat: lat, lng: lng }, language: 'it' }, function(results, stato) {
+    var citta = '';
+    if (stato === 'OK' && results && results.length > 0) {
+      // Cerca il componente "locality" (città) nell'indirizzo
+      results[0].address_components.forEach(function(comp) {
+        if (comp.types.indexOf('locality') !== -1) {
+          citta = comp.long_name;
+        }
+      });
+      // Fallback: usa "administrative_area_level_3" (comune)
+      if (!citta) {
+        results[0].address_components.forEach(function(comp) {
+          if (comp.types.indexOf('administrative_area_level_3') !== -1) {
+            citta = comp.long_name;
+          }
+        });
+      }
+    }
+ 
+    var query = citta
+      ? 'ristoranti senza glutine ' + citta
+      : 'ristoranti senza glutine';
+ 
+    var url = 'https://www.tripadvisor.it/Search?q=' + encodeURIComponent(query) +
+              '&searchSessionId=&sid=&blockRedirect=true';
+ 
+    // Link TripAdvisor
+    var btnStyle = 'display:inline-block;padding:10px 18px;border-radius:25px;text-decoration:none;font-size:13px;font-weight:600;margin:4px;';
+    var tripBtn = citta
+      ? '<a href="' + url + '" target="_blank" style="' + btnStyle + 'background:#00aa6c;color:white;box-shadow:0 2px 8px rgba(0,170,108,0.3)">🦉 TripAdvisor a ' + citta + '</a>'
+      : '<a href="' + url + '" target="_blank" style="' + btnStyle + 'background:#00aa6c;color:white;box-shadow:0 2px 8px rgba(0,170,108,0.3)">🦉 TripAdvisor</a>';
+ 
+    // Link Glutoapp — costruisce l'URL con il nome della città
+    var glutoBtn = '';
+    if (citta) {
+      var cittaSlug = citta.toLowerCase()
+        .replace(/à/g,'a').replace(/è/g,'e').replace(/é/g,'e')
+        .replace(/ì/g,'i').replace(/ò/g,'o').replace(/ù/g,'u')
+        .replace(/\s+/g, '-');
+      var glutoUrl = 'https://www.glutoapp.com/it/ristoranti-e-negozi-a-' + cittaSlug + '-senza-glutine';
+      glutoBtn = '<a href="' + glutoUrl + '" target="_blank" style="' + btnStyle + 'background:#F7C647;color:#1a1a1a;box-shadow:0 2px 8px rgba(247,198,71,0.4)">🌾 Glutoapp a ' + citta + '</a>';
+    } else {
+      glutoBtn = '<a href="https://www.glutoapp.com/it" target="_blank" style="' + btnStyle + 'background:#F7C647;color:#1a1a1a;box-shadow:0 2px 8px rgba(247,198,71,0.4)">🌾 Glutoapp</a>';
+    }
+ 
+    var divs = [document.getElementById('tripadvisor-link'), document.getElementById('tripadvisor-link-mobile')];
+    divs.forEach(function(div) {
+      if (div) { div.style.display = 'block'; div.innerHTML = tripBtn + glutoBtn; }
+    });
+  });
 }
  
 function initMap() { /* attesa click utente */ }
